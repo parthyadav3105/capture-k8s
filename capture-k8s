@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# Default configuration file
+config_file="config.yaml"
+kubeconfig_file=""
+extra_namespaces=()
+override_log_all_pods=false
+
+# Default values for config.yaml
+default_config="temp-config.yaml"
+echo "namespaces:" > "$default_config"
+echo "  - default" >> "$default_config"
+echo "resources:" >> "$default_config"
+echo "  - configmaps" >> "$default_config"
+echo "  - nodes" >> "$default_config"
+echo "  - pvc" >> "$default_config"
+echo "  - pv" >> "$default_config"
+echo "  - pods" >> "$default_config"
+echo "  - secrets" >> "$default_config"
+echo "  - services" >> "$default_config"
+echo "  - crds" >> "$default_config"
+echo "  - daemonsets" >> "$default_config"
+echo "  - deployments" >> "$default_config"
+echo "  - replicasets" >> "$default_config"
+echo "  - statefulsets" >> "$default_config"
+echo "  - cronjobs" >> "$default_config"
+echo "  - jobs" >> "$default_config"
+echo "  - ingresses" >> "$default_config"
+echo "  - networkpolicies" >> "$default_config"
+echo "  - clusterrolebindings" >> "$default_config"
+echo "  - clusterroles" >> "$default_config"
+echo "  - rolebindings" >> "$default_config"
+echo "  - roles" >> "$default_config"
+echo "  - storageclasses" >> "$default_config"
+echo "  - volumeattachments" >> "$default_config"
+echo "logAllPods: true" >> "$default_config"
+
+# Display help message
+display_help() {
+    echo "Usage: $0 [OPTIONS] [NAMESPACE1 NAMESPACE2 ...]"
+    echo "Capture Kubernetes resources and logs based on the provided configuration."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help             Display this help message."
+    echo "  -f, --config FILE      Specify the configuration file (default: config.yaml)."
+    echo "      --kubeconfig FILE  Specify the kubeconfig file for fetching logs."
+    echo "      --log-all-pods     Override logAllPods from config.yaml and capture logs for all pods."
+    echo ""
+    echo "Arguments:"
+    echo "  NAMESPACE1 NAMESPACE2  Additional namespaces to include in the capture."
+    echo ""
+    echo "Example:"
+    echo "  $0 -f custom-config.yaml --kubeconfig /path/to/kubeconfig --log-all-pods namespace1 namespace2"
+    exit 0
+}
+
+# Parse command line arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            display_help
+            ;;
+        -f|--config)
+            config_file="$2"
+            shift
+            ;;
+        --kubeconfig)
+            kubeconfig_file="$2"
+            shift
+            ;;
+        --log-all-pods)
+            override_log_all_pods=true
+            ;;
+        *)
+            extra_namespaces+=("$1")
+            ;;
+    esac
+    shift
+done
+
+# Use default config if no config file specified
+if [ ! -f "$config_file" ]; then
+    config_file="$default_config"
+fi
+
+# Generate a random name for the capture folder
+capture_folder="capture-$(date +'%Y%m%d%H%M%S%N')"
+
+# Create capture folder
+mkdir "$capture_folder"
+
+# Read config.yaml
+namespaces=($(yq eval ".namespaces[]" "$config_file"))
+resources=($(yq eval ".resources[]" "$config_file"))
+logSelectors=($(yq eval '.logSelectors[] | to_entries | map(.key + "=" + .value) | join(",")' "$config_file"))
+logAllPods=$(yq eval '.logAllPods' "$config_file")
+
+# Add extra namespaces to the list
+namespaces+=("${extra_namespaces[@]}")
+
+# Override logAllPods if --log-all-pods flag is present
+if [ "$override_log_all_pods" = true ]; then
+    logAllPods=true
+fi
+
+# Function to create directory if it does not exist
+create_directory() {
+    directory=$1
+    if [ ! -d "$directory" ]; then
+        mkdir -p "$directory"
+    fi
+}
+
+# Function to capture details for a resource
+capture_resource_details() {
+    namespace=$1
+    resource_type=$2
+    resource_name=$3
+
+    # Create namespace, resource_type, and resource_name directories
+    create_directory "$capture_folder/$namespace"
+    create_directory "$capture_folder/$namespace/$resource_type"
+    create_directory "$capture_folder/$namespace/$resource_type/$resource_name"
+
+    # Get resource details
+    kubectl --kubeconfig="$kubeconfig_file" get $resource_type -n $namespace $resource_name -o yaml > "$capture_folder/$namespace/$resource_type/$resource_name/get.yaml"
+    kubectl --kubeconfig="$kubeconfig_file" describe $resource_type -n $namespace $resource_name > "$capture_folder/$namespace/$resource_type/$resource_name/describe.txt"
+}
+
+# Function to capture logs for a pod
+capture_pod_logs() {
+    namespace=$1
+    pod_name=$2
+    container_name=$3
+
+    # Create namespace, pods, and pod_name directories
+    create_directory "$capture_folder/$namespace"
+    create_directory "$capture_folder/$namespace/pods"
+    create_directory "$capture_folder/$namespace/pods/$pod_name"
+
+    # Get pod logs
+    kubectl --kubeconfig="$kubeconfig_file" logs -n $namespace $pod_name -c $container_name > "$capture_folder/$namespace/pods/$pod_name/$container_name-log.txt"
+}
+
+# Loop through namespaces and resources
+for namespace in "${namespaces[@]}"; do
+    for resource_type in "${resources[@]}"; do
+        # Capture details for each resource
+        for resource_name in $(kubectl --kubeconfig="$kubeconfig_file" get $resource_type -n $namespace -o custom-columns=:metadata.name --no-headers); do
+            capture_resource_details $namespace $resource_type $resource_name
+        done
+    done
+
+    # Capture logs for pods based on log selectors
+    if [ "$logAllPods" = "true" ]; then
+        # Capture logs for all pods in the namespace
+        for pod_name in $(kubectl --kubeconfig="$kubeconfig_file" get pods -n $namespace -o custom-columns=:metadata.name --no-headers); do
+            for container_name in $(kubectl --kubeconfig="$kubeconfig_file" get pod $pod_name -n $namespace -o jsonpath='{.spec.containers[*].name}' --no-headers); do
+                capture_pod_logs $namespace $pod_name $container_name
+            done
+        done
+    else
+        for log_selector in "${logSelectors[@]}"; do
+            # Get pods with matching labels for each selector
+            pod_names=($(kubectl --kubeconfig="$kubeconfig_file" get pods -n $namespace --selector=$log_selector -o custom-columns=:metadata.name --no-headers))
+
+            # Capture logs for each matching pod
+            for pod_name in "${pod_names[@]}"; do
+                for container_name in $(kubectl --kubeconfig="$kubeconfig_file" get pod $pod_name -n $namespace -o jsonpath='{.spec.containers[*].name}' --no-headers); do
+                    capture_pod_logs $namespace $pod_name $container_name
+                done
+            done
+        done
+    fi
+done
+
+# Remove temporary config file
+rm -f "$default_config"
+
+echo "Capture completed. Files are stored in $capture_folder"
+

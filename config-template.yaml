@@ -1,0 +1,23 @@
+# list of all namespaces that you want to capture
+namespaces:
+  - kube-system
+  - default
+
+# k8s resources
+resources:
+  - pods
+  - pvc
+  - pv
+  - sts
+  - deployments
+  - configmap
+  - secrets
+
+# label selectors for pod to collect logs from
+logSelectors:
+  - key1: value1
+    key2: value2
+  - key3: value3
+
+# logAllPods will capture logs of all pods irrespective of the logSelectors
+logAllPods: false

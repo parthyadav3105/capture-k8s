@@ -1,0 +1,39 @@
+# Following settings are used as defaults when config.yaml is missing and --config is also not provided.
+
+# default list of namespaces that you want to capture
+namespaces:
+  - default
+
+# k8s resources
+resources:
+  - configmaps
+  - nodes
+  - pvc
+  - pv
+  - pods
+  - secrets
+  - services
+  - crds
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  - cronjobs
+  - jobs
+  - ingresses
+  - networkpolicies
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  - storageclasses
+  - volumeattachments
+
+# # label selectors for pod to collect logs from
+# logSelectors:
+#   - key1: value1
+#     key2: value2
+#   - key3: value3
+
+# capture logs from all pods
+logAllPods: true

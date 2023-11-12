@@ -1,0 +1,38 @@
+# list of all namespaces that you want to capture
+namespaces:
+  - default
+  # - kube-system
+
+# k8s resources
+resources:
+  - configmaps
+  - nodes
+  - pvc
+  - pv
+  - pods
+  - secrets
+  - services
+  - crds
+  - daemonsets
+  - deployments
+  - statefulsets
+  - ingresses
+  - networkpolicies
+  - storageclasses
+  - volumeattachments
+  # - replicasets
+  # - cronjobs
+  # - jobs
+  # - clusterrolebindings
+  # - clusterroles
+  # - rolebindings
+  # - roles
+
+# label selectors for pod to collect logs from
+logSelectors:
+  - key1: value1
+    key2: value2
+  - key3: value3
+
+# logAllPods will capture logs of all pods irrespective of the logSelectors
+logAllPods: true
