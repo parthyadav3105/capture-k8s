@@ -4,11 +4,20 @@ Capture-K8s is a tool to capture details and logs from Kubernetes clusters.
 
 It can capture information about specified resources and logs from pods within specific namespaces and provides a flexible configuration file.
 
+The ouput from capture-k8s tool is stored in current directory as folder with name `capture-TIMESTAMP`
 
 
-> *Table of Contents:*
 
-[TOC]
+#### TOC
+
+- [Usage ✨](#usage-✨)
+- [Options 🛠️](#options-🛠️)
+- [Examples 🌐](#examples-🌐)
+- [Installation 🚚](#installation-🚚)
+- [Default Configuration ⚙️](#default-configuration-⚙️)
+- [Custom config 🔧✨](#🔧✨)
+
+
 
 ## Usage ✨
 
@@ -18,7 +27,7 @@ Run the `capture.sh` script to capture Kubernetes resources and logs.
 capture-k8s [OPTIONS] [NAMESPACE1 NAMESPACE2 ...]
 ```
 
-### Options🛠️
+### Options 🛠️
 
 - `-h, --help`: Display help information.
 - `-f, --config FILE`: Specify the configuration file (default: config.yaml).
