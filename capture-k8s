@@ -142,9 +142,24 @@ capture_pod_logs() {
     kubectl --kubeconfig="$kubeconfig_file" logs -n $namespace $pod_name -c $container_name > "$capture_folder/$namespace/pods/$pod_name/$container_name-log.txt"
 }
 
+# Fetch cluster-scoped resources once
+for resource_type in "${resources[@]}"; do
+    if [ "$(kubectl --kubeconfig="$kubeconfig_file" api-resources --no-headers=true --namespaced=false | grep $resource_type)" ]; then
+        for resource_name in $(kubectl --kubeconfig="$kubeconfig_file" get $resource_type -o custom-columns=:metadata.name --no-headers); do
+            # Capture details for each resource
+            capture_resource_details "cluster-scoped-resource" $resource_type $resource_name
+        done
+    fi
+done
+
 # Loop through namespaces and resources
 for namespace in "${namespaces[@]}"; do
     for resource_type in "${resources[@]}"; do
+        # Skip cluster-scoped resources if they are already fetched
+        if [ "$(kubectl --kubeconfig="$kubeconfig_file" api-resources --no-headers=true --namespaced=false | grep $resource_type)" ]; then
+            continue
+        fi
+
         # Capture details for each resource
         for resource_name in $(kubectl --kubeconfig="$kubeconfig_file" get $resource_type -n $namespace -o custom-columns=:metadata.name --no-headers); do
             capture_resource_details $namespace $resource_type $resource_name
